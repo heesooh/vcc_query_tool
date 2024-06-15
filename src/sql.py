@@ -12,12 +12,10 @@ def mysql_connect(config):
             print("Failed to connect to MySQL")
     except Error as e:
         print(e)
-
     finally:
         if not connect.is_connected() and connect is not None:
             connect.close()
             print("MySQL connection is closed")
-
     return connect
 
 
@@ -35,11 +33,11 @@ def mysql_disconnect(connect):
     return False
 
 
-def mysql_query(connect, sql_query, args):
+def mysql_query(connect, sql_query, args=None):
     cursor = connect.cursor()
     cursor.execute(sql_query, args)
-
     # TODO: Replace with 'return cursor.fetchall()' later
     query_result = cursor.fetchall()
     for row in query_result:
         print(row)
+    return query_result
