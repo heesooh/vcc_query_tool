@@ -124,11 +124,71 @@ def _merge_records(payment_record, order_record):
 
 
 def get_records(from_date, to_date):
-    print("Getting data from the payment gateway db.....")
     payment_df = _payment_records(from_date, to_date)
-    print("Getting data from the order records db.....")
     order_df = _order_records(from_date, to_date)
-    print("Merging queried data.....")
     merged_df = _merge_records(payment_df, order_df)
 
     return merged_df
+
+
+def get_pending_records(order_ids):
+    mysql_url = f"mysql+pymysql://{card_server['user']}:{card_server['password']}@" \
+                f"{card_server['host']}:{card_server['port']}"
+
+    sqlalchemy_engine = create_engine(mysql_url)
+
+    order_ids_str = ', '.join(f"'{id}'" for id in order_ids if id)
+
+    db_list = ['mw_card', 'ucard', 'toncard']
+    dfs = []
+
+    for db in db_list:
+        query = text(f"""
+            SELECT ab.*, u.email, u.kyc_status
+            FROM (
+                SELECT *
+                FROM card_user.Users 
+                WHERE kyc_status = 'PASSED'
+            ) AS u
+            RIGHT JOIN (
+                SELECT
+                    a.id as order_id,
+                    a.user_id,
+                    a.coin_id,
+                    a.merchant_order_id,
+                    a.timestamp,
+                    a.base_amount,
+                    a.base_currency,
+                    a.amount_to_pay,
+                    a.order_data,
+                    a.order_type,
+                    a.status AS order_status,
+                    b.card_id,
+                    b.alias,
+                    b.card_no,
+                    b.cvv,
+                    b.balance,
+                    b.status AS card_status,
+                    b.currency
+                FROM (
+                    SELECT *
+                    FROM {db}.airswift_order
+                    WHERE id IN (
+                        {order_ids_str}
+                    )
+                ) AS a
+                LEFT JOIN {db}.blockpurse_card AS b 
+                ON b.merchant_order_id = a.merchant_order_id
+            ) AS ab 
+            ON u.uid = ab.user_id
+        """)
+
+        with sqlalchemy_engine.connect() as conn:
+            df = pd.read_sql_query(query, conn)
+            df['card_name'] = db
+            dfs.append(df)
+
+    non_empty_dfs = [df.dropna(axis=1, how='all') for df in dfs]
+
+    return pd.concat(non_empty_dfs, ignore_index=True)
+

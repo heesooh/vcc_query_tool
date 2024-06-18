@@ -39,6 +39,20 @@ def _estimate_filter_time(records):
     print(f"Estimated filtering time: {estimated_time} seconds")
 
 
+def _remove_prefix(apply_records, recharge_records):
+    apply_records.loc[:, 'order_type'] = 'APPLY_CARD'
+    recharge_records.loc[:, 'order_type'] = 'RECHARGE_CARD'
+
+    return apply_records, recharge_records
+
+
+def _reset_index(records):
+    for _, record in records.items():
+        record.reset_index(drop=True, inplace=True)
+
+    return records
+
+
 def _filter_client_test_records(records):
     client_records = records[records['is_client']]
     test_records = records[~records['is_client']]
@@ -49,7 +63,20 @@ def _filter_client_test_records(records):
     card_apply_records = client_records_success[client_records_success['order_type'] == 'BP_APPLY_CARD']
     card_recharge_records = client_records_success[client_records_success['order_type'] == 'BP_RECHARGE_CARD']
 
-    return card_apply_records, card_recharge_records, client_records_pending, test_records
+    client_underpaid_records = client_records_pending[client_records_pending['pay_status'] == 0]
+    client_error_records = client_records_pending[client_records_pending['pay_status'] != 0]
+
+    card_apply_records, card_recharge_records = _remove_prefix(card_apply_records, card_recharge_records)
+
+    filtered_records = {
+        'apply_records': card_apply_records,
+        'recharge_records': card_recharge_records,
+        'underpaid_records': client_underpaid_records,
+        'error_records': client_error_records,
+        'test_records': test_records
+    }
+
+    return _reset_index(filtered_records)
 
 
 def filter_records(records):
