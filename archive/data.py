@@ -1,7 +1,6 @@
 import os
-import pandas as pd
+from archive.sql import *
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
 
 load_dotenv()
 
@@ -37,10 +36,8 @@ CARD_CONFIG = {
 
 
 def payment_records(from_date, to_date):
-    mysql_url = f"mysql+pymysql://{PAYMENT_GATEWAY_USER}:{PAYMENT_GATEWAY_PASSWORD}@{PAYMENT_GATEWAY_HOST}:{PAYMENT_GATEWAY_PORT}/{PAYMENT_GATEWAY_DB}"
-    sqlalchemy_engine = create_engine(mysql_url)
-
-    query = text(f"""
+    connect = mysql_connect(PAYMENT_GATEWAY_CONFIG)
+    query = (f"""
         SELECT
             r.tx_id,
             r.order_id,
@@ -55,31 +52,29 @@ def payment_records(from_date, to_date):
         FROM (
             SELECT *
             FROM {PAYMENT_GATEWAY_TABLE1}
-            WHERE create_time >= :from_date AND create_time <= :to_date) AS r
+            WHERE create_time >= %s AND create_time <= %s) AS r
         LEFT JOIN (
             SELECT *
             FROM {PAYMENT_GATEWAY_TABLE2}
-            WHERE closed_time >= :from_date AND closed_time <= :to_date) AS o
+            WHERE closed_time >= %s AND closed_time <= %s) AS o
         ON r.order_id = o.order_id
         ORDER BY r.create_time
     """)
+    result = mysql_query(connect, query, (from_date, to_date, from_date, to_date))
+    print(type(result))
+    mysql_disconnect(connect)
 
-    with sqlalchemy_engine.connect() as conn:
-        df1 = pd.read_sql_query(query, conn, params={"from_date": from_date, "to_date": to_date})
 
-    return df1
+# payment_records('2024-05-01', '2025-05-31')
 
 
 def card_records():
-    mysql_url = f"mysql+pymysql://{CARD_USER}:{CARD_PASSWORD}@{CARD_HOST}:{CARD_PORT}"
-    sqlalchemy_engine = create_engine(mysql_url)
-    dfs = []
-
     db_list = ['mw_card', 'ucard', 'toncard']
+    connect = mysql_connect(CARD_CONFIG)
     for db in db_list:
-        # print(("\nQuerying to database: " + db + ".....\n").upper())
+        print(("\nQuerying to database: " + db + ".....\n").upper())
 
-        query = text(f"""
+        query = f"""
             SELECT ab.*, u.email, u.kyc_status
             FROM (
                 SELECT *
@@ -116,26 +111,12 @@ def card_records():
                 ON b.merchant_order_id = a.merchant_order_id
             ) AS ab 
             ON u.uid = ab.user_id
-        """)
+        """
 
-        with sqlalchemy_engine.connect() as conn:
-            df = pd.read_sql_query(query, conn)
-            dfs.append(df)
+        result = mysql_query(connect, query, None)
+        print(type(result))
 
-    if dfs:
-        df2 = pd.concat(dfs, ignore_index=True)
-
-    return df2
+    mysql_disconnect(connect)
 
 
-def merge_records(payment_record, order_record):
-    order_record['order_id'] = pd.to_numeric(order_record['order_id'], errors='coerce').astype('int64')
-    merged_records = pd.merge(payment_record, order_record, how='left', on='order_id')
-    # print(merged_records.to_string())
-    return merged_records
-
-
-df1 = payment_records('2024-05-01', '2025-05-31')
-df2 = card_records()
-merge_records(df1, df2)
-
+card_records()

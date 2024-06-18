@@ -22,14 +22,14 @@ def get_trc_sender_address(tx_hash):
                 print("No Data Found!!")
             else:
                 sender_address = data['trc20TransferInfo'][0]['from_address']
-                print("TRC20 Sender address: " + sender_address)
+                # print("TRC20 Sender address: " + sender_address)
                 return sender_address
         else:
             print("Failed to Retrieve Data From: https://tronscan.org/#/transaction/" + tx_hash)
     except requests.Timeout:
         print("Request time out!!")
     except requests.RequestException as error:
-        print(f'An unexpected error occured: {str(error)}')
+        print(f'An unexpected error occurred: {str(error)}')
 
     return 'Not Found'
 
@@ -51,7 +51,7 @@ def get_erc_sender_address(tx_hash):
             address_div = soup.select_one('div.col-md-9 > div > span > a[data-highlight-value]')
             if address_div:
                 sender_address = address_div.text
-                print("ERC20 Sender address: " + sender_address)
+                # print("ERC20 Sender address: " + sender_address)
                 return sender_address
             else:
                 print("Sender's address not found.")
@@ -60,6 +60,6 @@ def get_erc_sender_address(tx_hash):
     except requests.Timeout:
         print("Request time out!!")
     except requests.RequestException as error:
-        print(f'An unexpected error occured: {str(error)}')
+        print(f'An unexpected error occurred: {str(error)}')
 
     return 'Not Found'

@@ -1,43 +1,37 @@
 import os
-from sql import *
 from dotenv import load_dotenv
+
+import pandas as pd
+from sqlalchemy import create_engine, text
 
 load_dotenv()
 
 # Payment Gateway
-PAYMENT_GATEWAY_HOST = os.getenv('PAYMENT_GATEWAY_HOST')
-PAYMENT_GATEWAY_PORT = os.getenv('PAYMENT_GATEWAY_PORT')
-PAYMENT_GATEWAY_DB = os.getenv('PAYMENT_GATEWAY_DB')
-PAYMENT_GATEWAY_USER = os.getenv('PAYMENT_GATEWAY_USER')
-PAYMENT_GATEWAY_PASSWORD = os.getenv('PAYMENT_GATEWAY_PASSWORD')
-PAYMENT_GATEWAY_TABLE1 = os.getenv('PAYMENT_GATEWAY_TABLE1')
-PAYMENT_GATEWAY_TABLE2 = os.getenv('PAYMENT_GATEWAY_TABLE2')
-
-PAYMENT_GATEWAY_CONFIG = {
-    'host': PAYMENT_GATEWAY_HOST,
-    'port': int(PAYMENT_GATEWAY_PORT),
-    'database': PAYMENT_GATEWAY_DB,
-    'user': PAYMENT_GATEWAY_USER,
-    'password': PAYMENT_GATEWAY_PASSWORD,
+payment_gateway = {
+    'host': os.getenv('PAYMENT_GATEWAY_HOST'),
+    'port': int(os.getenv('PAYMENT_GATEWAY_PORT')),
+    'user': os.getenv('PAYMENT_GATEWAY_USER'),
+    'password': os.getenv('PAYMENT_GATEWAY_PASSWORD'),
+    'database': os.getenv('PAYMENT_GATEWAY_DB'),
+    'table1': os.getenv('PAYMENT_GATEWAY_TABLE1'),
+    'table2': os.getenv('PAYMENT_GATEWAY_TABLE2')
 }
 
-# Card Database
-CARD_HOST = os.getenv('CARD_HOST')
-CARD_PORT = os.getenv('CARD_PORT')
-CARD_USER = os.getenv('CARD_USER')
-CARD_PASSWORD = os.getenv('CARD_PASSWORD')
-
-CARD_CONFIG = {
-    'host': CARD_HOST,
-    'port': int(CARD_PORT),
-    'user': CARD_USER,
-    'password': CARD_PASSWORD,
+card_server = {
+    'host': os.getenv('CARD_HOST'),
+    'port': int(os.getenv('CARD_PORT')),
+    'user': os.getenv('CARD_USER'),
+    'password': os.getenv('CARD_PASSWORD'),
 }
 
 
-def payment_records(from_date, to_date):
-    connect = mysql_connect(PAYMENT_GATEWAY_CONFIG)
-    query = (f"""
+def _payment_records(from_date, to_date):
+    mysql_url = f"mysql+pymysql://{payment_gateway['user']}:{payment_gateway['password']}@" \
+                f"{payment_gateway['host']}:{payment_gateway['port']}/{payment_gateway['database']}"
+
+    sqlalchemy_engine = create_engine(mysql_url)
+
+    query = text(f"""
         SELECT
             r.tx_id,
             r.order_id,
@@ -51,30 +45,31 @@ def payment_records(from_date, to_date):
             r.create_time
         FROM (
             SELECT *
-            FROM {PAYMENT_GATEWAY_TABLE1}
-            WHERE create_time >= %s AND create_time <= %s) AS r
+            FROM {payment_gateway['table1']} r
+            WHERE DATE(create_time) BETWEEN :from_date AND :to_date) AS r
         LEFT JOIN (
             SELECT *
-            FROM {PAYMENT_GATEWAY_TABLE2}
-            WHERE closed_time >= %s AND closed_time <= %s) AS o
+            FROM {payment_gateway['table2']} r
+            WHERE DATE(closed_time) BETWEEN :from_date AND :to_date) AS o
         ON r.order_id = o.order_id
         ORDER BY r.create_time
     """)
-    result = mysql_query(connect, query, (from_date, to_date, from_date, to_date))
-    print(type(result))
-    mysql_disconnect(connect)
+
+    with sqlalchemy_engine.connect() as conn:
+        return pd.read_sql_query(query, conn, params={"from_date": from_date, "to_date": to_date})
 
 
-# payment_records('2024-05-01', '2025-05-31')
+def _order_records(from_date, to_date):
+    mysql_url = f"mysql+pymysql://{card_server['user']}:{card_server['password']}@" \
+                f"{card_server['host']}:{card_server['port']}"
 
+    sqlalchemy_engine = create_engine(mysql_url)
 
-def card_records():
     db_list = ['mw_card', 'ucard', 'toncard']
-    connect = mysql_connect(CARD_CONFIG)
-    for db in db_list:
-        print(("\nQuerying to database: " + db + ".....\n").upper())
+    dfs = []
 
-        query = f"""
+    for db in db_list:
+        query = text(f"""
             SELECT ab.*, u.email, u.kyc_status
             FROM (
                 SELECT *
@@ -105,18 +100,35 @@ def card_records():
                     SELECT *
                     FROM {db}.airswift_order
                     WHERE status = 'SUCCESS'
-                    AND timestamp LIKE '202405%'
+                    AND STR_TO_DATE(SUBSTRING(timestamp, 1, 8), '%Y%m%d') BETWEEN :from_date AND :to_date
                 ) AS a
                 LEFT JOIN {db}.blockpurse_card AS b 
                 ON b.merchant_order_id = a.merchant_order_id
             ) AS ab 
             ON u.uid = ab.user_id
-        """
+        """)
 
-        result = mysql_query(connect, query, None)
-        print(type(result))
+        with sqlalchemy_engine.connect() as conn:
+            df = pd.read_sql_query(query, conn, params={"from_date": from_date, "to_date": to_date})
+            df['card_name'] = db
+            dfs.append(df)
 
-    mysql_disconnect(connect)
+    return pd.concat(dfs, ignore_index=True)
 
 
-card_records()
+def _merge_records(payment_record, order_record):
+    order_record['order_id'] = pd.to_numeric(order_record['order_id'], errors='coerce').astype('int64')
+    merged_records = pd.merge(payment_record, order_record, how='left', on='order_id')
+
+    return merged_records
+
+
+def get_records(from_date, to_date):
+    print("Getting data from the payment gateway db.....")
+    payment_df = _payment_records(from_date, to_date)
+    print("Getting data from the order records db.....")
+    order_df = _order_records(from_date, to_date)
+    print("Merging queried data.....")
+    merged_df = _merge_records(payment_df, order_df)
+
+    return merged_df
