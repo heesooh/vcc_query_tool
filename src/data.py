@@ -6,7 +6,6 @@ from sqlalchemy import create_engine, text
 
 load_dotenv()
 
-# Payment Gateway
 payment_gateway = {
     'host': os.getenv('PAYMENT_GATEWAY_HOST'),
     'port': int(os.getenv('PAYMENT_GATEWAY_PORT')),
