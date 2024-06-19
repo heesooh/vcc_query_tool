@@ -1,73 +1,70 @@
-import os.path
+import os
+import gspread
+import pandas as pd
 from dotenv import load_dotenv
+from oauth2client.service_account import ServiceAccountCredentials
 
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 load_dotenv()
 
-# If modifying these scopes, delete the file token.json.
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+service_acc_path = '../credentials/service_acc_credentials.json'
+workbook_id = os.getenv('GOOGLE_SHEET_ID')
 
-# The ID and range of a sample spreadsheet.
-SAMPLE_SPREADSHEET_ID = os.getenv("GOOGLE_SHEET_ID")
-SAMPLE_RANGE_NAME = "Sheet1!A1"
+csv_files = {
+    'apply_records': '../data/apply_records.csv',
+    'recharge_records': '../data/recharge_records.csv',
+    'underpaid_records': '../data/underpaid_records.csv',
+    'error_records': '../data/error_records.csv',
+    'test_records': '../data/test_records.csv'
+}
 
 
-def gsheet_write():
-    """
-    Shows basic usage of the Sheets API.
-    Prints values from a sample spreadsheet.
-    """
-    creds = None
-    # The file token.json stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
-    if os.path.exists("../credentials/gsheet_token.json"):
-        creds = Credentials.from_authorized_user_file("../credentials/gsheet_token.json", SCOPES)
-    # If there are no (valid) credentials available, let the user log in.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+def _get_workbook():
+    scope = ['https://www.googleapis.com/auth/spreadsheets']
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(service_acc_path, scope)
+    client = gspread.authorize(credentials)
+
+    workbook = client.open_by_key(workbook_id)
+    return workbook
+
+
+def _upload_csv_to_workbook():
+    workbook = _get_workbook()
+
+    existing_sheets = workbook.worksheets()
+    sheet_names = [sheet.title for sheet in existing_sheets]
+
+    for sheet_name, csv_file in csv_files.items():
+        df = pd.read_csv(csv_file)
+        df.fillna('', inplace=True)
+
+        if 'order_id' in df.columns:
+            df['order_id'] = df['order_id'].astype(str)
+
+        if sheet_name in sheet_names:
+            if len(existing_sheets) > 1:
+                worksheet = workbook.worksheet(sheet_name)
+                workbook.del_worksheet(worksheet)
+                worksheet = workbook.add_worksheet(title=sheet_name, rows=len(df), cols=len(df.columns))
+            else:
+                worksheet = workbook.worksheet(sheet_name)
+                worksheet.clear()
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                "../credentials/gsheet_credential.json", SCOPES
-            )
-            creds = flow.run_local_server(port=3000)
-        # Save the credentials for the next run
-        with open("../credentials/gsheet_token.json", "w") as token:
-            token.write(creds.to_json())
+            worksheet = workbook.add_worksheet(title=sheet_name, rows=len(df), cols=len(df.columns))
 
-    try:
-        service = build("sheets", "v4", credentials=creds)
+        worksheet.update([df.columns.values.tolist()] + df.values.tolist())
 
-        # Call the Sheets API
 
-        valueData = [['new', 'data'], ['data']]
+def _write_csv(records):
+    records['apply_records'].astype(str).to_csv("../data/apply_records.csv", index=False)
+    records['recharge_records'].astype(str).to_csv("../data/recharge_records.csv", index=False)
+    records['underpaid_records'].astype(str).to_csv("../data/underpaid_records.csv", index=False)
+    records['error_records'].astype(str).to_csv("../data/error_records.csv", index=False)
+    records['test_records'].astype(str).to_csv("../data/test_records.csv", index=False)
 
-        sheet = service.spreadsheets()
-        result = (
-            sheet.values()
-            .update(
-                spreadsheetId=SAMPLE_SPREADSHEET_ID,
-                range=SAMPLE_RANGE_NAME,
-                valueInputOption="USER_ENTERED",
-                body={"values": valueData}
-            )
-            .execute()
-        )
-        # values = result.get("values", [])
-        #
-        # if not values:
-        #     print("No data found.")
-        #     return
-        #
-        # print("Name, Major:")
-        # for row in values:
-        #     # Print columns A and E, which correspond to indices 0 and 4.
-        #     print(f"{row[0]}, {row[4]}")
-    except HttpError as err:
-        print(err)
+
+def upload_to_google(records):
+    _write_csv(records)
+    _upload_csv_to_workbook()

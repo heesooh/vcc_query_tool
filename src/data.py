@@ -4,6 +4,9 @@ from dotenv import load_dotenv
 import pandas as pd
 from sqlalchemy import create_engine, text
 
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 load_dotenv()
 
 payment_gateway = {
