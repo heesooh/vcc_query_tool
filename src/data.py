@@ -35,16 +35,14 @@ def _payment_records(from_date, to_date):
 
     query = text(f"""
         SELECT
-            r.tx_id,
+            r.create_time as order_time,
             r.order_id,
-            r.address as recipient_address,
-            o.amount as requested_amount,
-            r.amount as paid_amount,
-            r.coin_id,
+            r.tx_id as transaction_hash,
+            r.address as receiver_address,
             o.pay_status,
-            o.merchant_id,
-            o.merchant_order_id,
-            r.create_time
+            o.amount as order_amount,
+            r.amount as paid_amount,
+            r.coin_id as order_currency
         FROM (
             SELECT *
             FROM {payment_gateway['table1']} r
@@ -82,15 +80,12 @@ def _order_records(from_date, to_date):
                 SELECT
                     a.id as order_id,
                     a.user_id,
-                    a.coin_id,
                     a.merchant_order_id,
-                    a.timestamp,
                     a.base_amount,
-                    a.base_currency,
-                    a.amount_to_pay,
                     a.order_data,
                     a.order_type,
                     a.status AS order_status,
+                    a.card_id as order_card_id,
                     b.card_id,
                     b.alias,
                     b.card_no,
@@ -105,7 +100,7 @@ def _order_records(from_date, to_date):
                     AND STR_TO_DATE(SUBSTRING(timestamp, 1, 8), '%Y%m%d') BETWEEN :from_date AND :to_date
                 ) AS a
                 LEFT JOIN {db}.blockpurse_card AS b 
-                ON b.merchant_order_id = a.merchant_order_id
+                ON (b.merchant_order_id = a.merchant_order_id OR b.card_id = a.card_id)
             ) AS ab 
             ON u.uid = ab.user_id
         """)
@@ -165,6 +160,7 @@ def get_pending_records(order_ids):
                     a.order_data,
                     a.order_type,
                     a.status AS order_status,
+                    a.card_id as order_card_id,
                     b.card_id,
                     b.alias,
                     b.card_no,
@@ -180,7 +176,7 @@ def get_pending_records(order_ids):
                     )
                 ) AS a
                 LEFT JOIN {db}.blockpurse_card AS b 
-                ON b.merchant_order_id = a.merchant_order_id
+                ON (b.merchant_order_id = a.merchant_order_id OR b.card_id = a.card_id)
             ) AS ab 
             ON u.uid = ab.user_id
         """)

@@ -83,7 +83,7 @@ def filter_records(records):
     _estimate_filter_time(records)
 
     for index, record in records.iterrows():
-        sender_address = _get_sender_address(record['tx_id'])
+        sender_address = _get_sender_address(record['transaction_hash'])
         records.at[index, 'sender_address'] = sender_address
 
         if _is_test_address(sender_address):

@@ -47,12 +47,12 @@ def _upload_csv_to_workbook():
             if len(existing_sheets) > 1:
                 worksheet = workbook.worksheet(sheet_name)
                 workbook.del_worksheet(worksheet)
-                worksheet = workbook.add_worksheet(title=sheet_name, rows=len(df), cols=len(df.columns))
+                worksheet = workbook.add_worksheet(title=sheet_name, rows=len(df) + 100, cols=len(df.columns) + 10)
             else:
                 worksheet = workbook.worksheet(sheet_name)
                 worksheet.clear()
         else:
-            worksheet = workbook.add_worksheet(title=sheet_name, rows=len(df), cols=len(df.columns))
+            worksheet = workbook.add_worksheet(title=sheet_name, rows=len(df) + 100, cols=len(df.columns) + 10)
 
         worksheet.update([df.columns.values.tolist()] + df.values.tolist())
 

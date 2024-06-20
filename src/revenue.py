@@ -15,7 +15,7 @@ def _apply_revenue(records):
         records.at[index, 'mw_tx_fee'] = min_top_up_amount * mw_tx_fee_percent
         records.at[index, 'as_tx_fee'] = min_top_up_amount * as_tx_fee_percent
 
-        records.at[index, 'overpaid_amount'] = record['paid_amount'] - record['requested_amount']
+        records.at[index, 'overpaid_amount'] = record['paid_amount'] - record['order_amount']
 
     return records
 
@@ -27,7 +27,7 @@ def _recharge_revenue(records):
         records.at[index, 'mw_tx_fee'] = record['base_amount'] * mw_tx_fee_percent
         records.at[index, 'as_tx_fee'] = record['base_amount'] * as_tx_fee_percent
 
-        records.at[index, 'overpaid_amount'] = record['paid_amount'] - record['requested_amount']
+        records.at[index, 'overpaid_amount'] = record['paid_amount'] - record['order_amount']
 
     return records
 
@@ -50,7 +50,7 @@ def _underpaid_revenue(records):
 
     for index, record in updated_records.iterrows():
         updated_records.at[index, 'underpaid_amount'] = record['paid_amount']
-        updated_records.at[index, 'missing_amount'] = record['requested_amount'] - record['paid_amount']
+        updated_records.at[index, 'missing_amount'] = record['order_amount'] - record['paid_amount']
 
     return updated_records
 
