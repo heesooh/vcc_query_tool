@@ -1,6 +1,7 @@
 import os
 from scraper import *
 from dotenv import load_dotenv
+from tqdm import tqdm
 
 load_dotenv()
 
@@ -30,13 +31,6 @@ def _is_test_address(address):
     ]
 
     return address in test_addresses
-
-
-def _estimate_filter_time(records):
-    total_num = records.shape[0]
-    estimated_time = (total_num / 10) * 4.77
-    print(f"Filtering a total of {total_num} records...")
-    print(f"Estimated filtering time: {estimated_time} seconds")
 
 
 def _remove_prefix(apply_records, recharge_records):
@@ -80,10 +74,11 @@ def _filter_client_test_records(records):
 
 
 def filter_records(records):
-    _estimate_filter_time(records)
+    progress = tqdm(total=records.shape[0])
 
     for index, record in records.iterrows():
         sender_address = _get_sender_address(record['transaction_hash'])
+        progress.update()
         records.at[index, 'sender_address'] = sender_address
 
         if _is_test_address(sender_address):
@@ -91,6 +86,7 @@ def filter_records(records):
         else:
             records.at[index, 'is_client'] = True
 
+    progress.close()
     records['is_client'] = records['is_client'].astype(bool)
 
     return _filter_client_test_records(records)
