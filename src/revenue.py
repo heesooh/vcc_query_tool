@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from data import get_pending_records
+from query import get_pending_records
 
 load_dotenv()
 
@@ -61,14 +61,20 @@ def _update_pending_records(prev, curr):
 
 
 def _underpaid_revenue(records):
-    pending_records = get_pending_records(records['order_id'].astype(str).tolist())
-    updated_records = _update_pending_records(records, pending_records)
+    records['underpaid_amount'] = None
+    records['missing_amount'] = None
 
-    for index, record in updated_records.iterrows():
-        updated_records.at[index, 'underpaid_amount'] = record['paid_amount']
-        updated_records.at[index, 'missing_amount'] = record['order_amount'] - record['paid_amount']
+    if not records.empty:
+        pending_records = get_pending_records(records['order_id'].astype(str).tolist())
+        updated_records = _update_pending_records(records, pending_records)
 
-    return updated_records
+        for index, record in updated_records.iterrows():
+            updated_records.at[index, 'underpaid_amount'] = record['paid_amount']
+            updated_records.at[index, 'missing_amount'] = record['order_amount'] - record['paid_amount']
+
+        return updated_records
+
+    return records
 
 
 def calculate_card_revenue(records):
