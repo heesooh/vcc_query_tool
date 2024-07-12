@@ -75,6 +75,7 @@ def _filter_client_test_records(records):
 
 def filter_records(records):
     progress = tqdm(total=records.shape[0])
+    records['is_client'] = None
 
     for index, record in records.iterrows():
         sender_address = _get_sender_address(record['transaction_hash'])
