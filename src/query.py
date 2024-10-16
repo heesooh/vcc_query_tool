@@ -15,21 +15,21 @@ payment_gateway = {
     'host': os.getenv('PAYMENT_GATEWAY_HOST'),
     'port': int(os.getenv('PAYMENT_GATEWAY_PORT')),
     'user': os.getenv('PAYMENT_GATEWAY_USER'),
-    'password': os.getenv('PAYMENT_GATEWAY_PASSWORD'),
-    'database': os.getenv('PAYMENT_GATEWAY_DB'),
     'table1': os.getenv('PAYMENT_GATEWAY_TABLE1'),
-    'table2': os.getenv('PAYMENT_GATEWAY_TABLE2')
+    'table2': os.getenv('PAYMENT_GATEWAY_TABLE2'),
+    'password': os.getenv('PAYMENT_GATEWAY_PASSWORD'),
+    'database': os.getenv('PAYMENT_GATEWAY_DB')
 }
 
-card_server = {
+mw_card_server = {
     'ssh_host': os.getenv('SSH_HOSTNAME'),
     'ssh_user': os.getenv('SSH_USERNAME'),
     'ssh_pkey': os.getenv('SSH_KEY_PATH'),
     'ssh_port': int(os.getenv('SSH_PORT')),
-    'vcc_host': os.getenv('MYSQL_HOST'),
-    'vcc_user': os.getenv('MYSQL_USERNAME'),
-    'vcc_pass': os.getenv('MYSQL_PASSWORD'),
-    'vcc_port': int(os.getenv('MYSQL_PORT'))
+    'sql_host': os.getenv('MYSQL_HOST'),
+    'sql_user': os.getenv('MYSQL_USERNAME'),
+    'sql_pass': os.getenv('MYSQL_PASSWORD'),
+    'sql_port': int(os.getenv('MYSQL_PORT'))
 }
 
 
@@ -69,10 +69,10 @@ def _order_records(from_date, to_date):
     order_records = []
 
     tunnel = SSHTunnelForwarder(
-        (card_server['ssh_host'], card_server['ssh_port']),
-        ssh_username=card_server['ssh_user'],
-        ssh_pkey=card_server['ssh_pkey'],
-        remote_bind_address=(card_server['vcc_host'], card_server['vcc_port'])
+        (mw_card_server['ssh_host'], mw_card_server['ssh_port']),
+        ssh_username=mw_card_server['ssh_user'],
+        ssh_pkey=mw_card_server['ssh_pkey'],
+        remote_bind_address=(mw_card_server['sql_host'], mw_card_server['sql_port'])
     )
 
     try:
@@ -80,9 +80,10 @@ def _order_records(from_date, to_date):
 
         local_port = tunnel.local_bind_port
 
-        sqlalchemy_engine = create_engine(f"mysql+pymysql://{card_server['vcc_user']}:{card_server['vcc_pass']}@localhost:{local_port}")
+        sqlalchemy_engine = create_engine(f"mysql+pymysql://{mw_card_server['sql_user']}:"
+                                          f"{mw_card_server['sql_pass']}@localhost:{local_port}")
 
-        db_list = ['mw_card', 'ucard', 'toncard']
+        db_list = ['mw_card', 'ucard', 'toncard', 'kimcard']
 
         for db in db_list:
             query = text(f"""
@@ -150,10 +151,10 @@ def get_pending_records(order_ids):
     pending_records = []
 
     tunnel = SSHTunnelForwarder(
-        (card_server['ssh_host'], card_server['ssh_port']),
-        ssh_username=card_server['ssh_user'],
-        ssh_pkey=card_server['ssh_pkey'],
-        remote_bind_address=(card_server['vcc_host'], card_server['vcc_port'])
+        (mw_card_server['ssh_host'], mw_card_server['ssh_port']),
+        ssh_username=mw_card_server['ssh_user'],
+        ssh_pkey=mw_card_server['ssh_pkey'],
+        remote_bind_address=(mw_card_server['sql_host'], mw_card_server['sql_port'])
     )
 
     try:
@@ -162,7 +163,7 @@ def get_pending_records(order_ids):
         local_port = tunnel.local_bind_port
         order_ids_str = ', '.join(f"'{id}'" for id in order_ids if id)
 
-        sqlalchemy_engine = create_engine(f"mysql+pymysql://{card_server['vcc_user']}:{card_server['vcc_pass']}@localhost:{local_port}")
+        sqlalchemy_engine = create_engine(f"mysql+pymysql://{mw_card_server['sql_user']}:{mw_card_server['sql_pass']}@localhost:{local_port}")
 
         db_list = ['mw_card', 'ucard', 'toncard']
 
@@ -231,8 +232,8 @@ def _get_monthly_fee_cards(active_cards, input_date):
 
 
 def _get_active_cards():
-    mysql_url = f"mysql+pymysql://{card_server['user']}:{card_server['password']}@" \
-                f"{card_server['host']}:{card_server['port']}"
+    mysql_url = f"mysql+pymysql://{mw_card_server['user']}:{mw_card_server['password']}@" \
+                f"{mw_card_server['host']}:{mw_card_server['port']}"
 
     sqlalchemy_engine = create_engine(mysql_url)
 
