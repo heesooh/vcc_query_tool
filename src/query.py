@@ -33,7 +33,7 @@ mw_card_server = {
 }
 
 
-def _payment_records(from_date, to_date):
+def _get_payment_gateway_records(from_date, to_date):
     mysql_url = f"mysql+pymysql://{payment_gateway['user']}:{payment_gateway['password']}@" \
                 f"{payment_gateway['host']}:{payment_gateway['port']}/{payment_gateway['database']}"
 
@@ -41,33 +41,43 @@ def _payment_records(from_date, to_date):
 
     query = text(f"""
         SELECT
-            r.create_time as order_time,
-            r.order_id,
-            r.tx_id as transaction_hash,
-            r.address as receiver_address,
-            o.pay_status,
-            o.amount as order_amount,
-            r.amount as paid_amount,
-            r.coin_id as order_currency
+            B.order_id,
+            B.merchant_order_id,
+            B.merchant_id,
+            B.trade_type,
+            A.status AS udun_tx_status,
+            B.order_status,
+            B.amount,
+            B.coin_id,
+            B.address AS recipient_address,
+            A.tx_id,
+            B.create_time,
+            B.update_time,
+            B.paid_amount,
+            B.refund_amount,
+            B.pay_status,
+            B.refund_time,
+            B.expire_time,
+            B.closed_time,
+            B.notify_url,
+            B.redirect_url
         FROM (
             SELECT *
-            FROM {payment_gateway['table1']} r
-            WHERE DATE(create_time) BETWEEN :from_date AND :to_date) AS r
-        LEFT JOIN (
+            FROM {payment_gateway['table1']}
+            WHERE DATE(create_time) BETWEEN :from_date AND :to_date) AS A
+        INNER JOIN (
             SELECT *
-            FROM {payment_gateway['table2']} r
-            WHERE DATE(closed_time) BETWEEN :from_date AND :to_date) AS o
-        ON r.order_id = o.order_id
-        ORDER BY r.create_time
+            FROM {payment_gateway['table2']}
+            WHERE DATE(closed_time) BETWEEN :from_date AND :to_date) AS B
+        ON A.order_id = B.order_id
+        ORDER BY A.create_time;
     """)
 
     with sqlalchemy_engine.connect() as conn:
         return pd.read_sql_query(query, conn, params={"from_date": from_date, "to_date": to_date})
 
 
-def _order_records(from_date, to_date):
-    order_records = []
-
+def _get_mw_order_records(from_date, to_date):
     tunnel = SSHTunnelForwarder(
         (mw_card_server['ssh_host'], mw_card_server['ssh_port']),
         ssh_username=mw_card_server['ssh_user'],
@@ -77,147 +87,98 @@ def _order_records(from_date, to_date):
 
     try:
         tunnel.start()
-
         local_port = tunnel.local_bind_port
-
         sqlalchemy_engine = create_engine(f"mysql+pymysql://{mw_card_server['sql_user']}:"
                                           f"{mw_card_server['sql_pass']}@localhost:{local_port}")
 
-        db_list = ['mw_card', 'ucard', 'toncard', 'kimcard']
-
-        for db in db_list:
-            query = text(f"""
-                SELECT ab.*, u.email, u.kyc_status
+        query = text(f"""
+            SELECT A.order_id, B.user_id, B.card_id, A.merchant_order_id, A.order_coin_id, A.order_amount_before_fee, A.order_amount_after_fee, A.order_data, A.order_type, A.order_timestamp, B.name_on_card, B.kyc_status, B.card_number, B.active_date, B.status, A.card_project, B.service
+            FROM (
+               SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, status AS order_status, timestamp AS order_timestamp, 'MW CARD' AS card_project
+                FROM mw_card.airswift_order
+                WHERE STR_TO_DATE(SUBSTRING(timestamp, 1, 8), '%Y%m%d') BETWEEN :from_date AND :to_date
+            
+                UNION ALL
+            
+                SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, status AS order_status, timestamp AS order_timestamp, 'U CARD' AS card_project
+                FROM ucard.airswift_order
+                WHERE STR_TO_DATE(SUBSTRING(timestamp, 1, 8), '%Y%m%d') BETWEEN :from_date AND :to_date
+            
+                UNION ALL
+            
+                SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, status AS order_status, timestamp AS order_timestamp, 'KIM CARD' AS card_project
+                FROM kimcard.airswift_order
+                WHERE STR_TO_DATE(SUBSTRING(timestamp, 1, 8), '%Y%m%d') BETWEEN :from_date AND :to_date
+            
+                UNION ALL
+            
+                SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, status AS order_status, timestamp AS order_timestamp, 'TON CARD' AS card_project
+                FROM toncard.airswift_order
+                WHERE STR_TO_DATE(SUBSTRING(timestamp, 1, 8), '%Y%m%d') BETWEEN :from_date AND :to_date
+                 ) AS A
+            LEFT JOIN (
+                SELECT card_info.*, user_info.email, user_info.kyc_status
                 FROM (
-                    SELECT *
-                    FROM card_user.Users 
-                    WHERE kyc_status = 'PASSED'
-                ) AS u
-                RIGHT JOIN (
-                    SELECT
-                        a.id as order_id,
-                        a.user_id,
-                        a.merchant_order_id,
-                        a.base_amount,
-                        a.order_data,
-                        a.order_type,
-                        a.status AS order_status,
-                        a.card_id as order_card_id,
-                        b.card_id,
-                        b.alias,
-                        b.card_no,
-                        b.cvv,
-                        b.balance,
-                        b.status AS card_status,
-                        b.currency
-                    FROM (
-                        SELECT *
-                        FROM {db}.airswift_order
-                        WHERE status = 'SUCCESS'
-                        AND STR_TO_DATE(SUBSTRING(timestamp, 1, 8), '%Y%m%d') BETWEEN :from_date AND :to_date
-                    ) AS a
-                    LEFT JOIN {db}.blockpurse_card AS b 
-                    ON (b.merchant_order_id = a.merchant_order_id OR b.card_id = a.card_id)
-                ) AS ab 
-                ON u.uid = ab.user_id
-            """)
+                    # Get Card Information (For Each MW Projects: MW, U, TON, KIM)
+                    SELECT card.merchant_order_id, card.card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.active_date, dashboard.status, dashboard.balance, dashboard.currency, 'BP' AS service
+                    FROM mw_card.blockpurse_card AS card
+                    LEFT JOIN (
+                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
+                        FROM mwcard_dashboard.card
+                    ) AS dashboard
+                    ON card.card_id = dashboard.id
+            
+                    UNION ALL
+            
+                    SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status, dashboard.balance, dashboard.currency, 'EE' AS service
+                    FROM mw_card.easyeuro_card AS card
+                    LEFT JOIN (
+                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
+                        FROM mwcard_dashboard.card
+                    ) AS dashboard
+                    ON card.id = dashboard.id
+            
+                    UNION ALL
+            
+                    SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status, dashboard.balance, dashboard.currency, 'FO' AS service
+                    FROM mw_card.financial_one_card AS card
+                    LEFT JOIN (
+                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
+                        FROM mwcard_dashboard.card
+                    ) AS dashboard
+                    ON card.id = dashboard.id
+                     ) AS card_info
+                LEFT JOIN (
+                    # Get User Information (ALL MW Projects)
+                    SELECT uid AS user_id, email, kyc_status
+                    FROM card_user.Users
+                ) AS user_info
+                ON card_info.user_id = user_info.user_id
+            ) AS B
+            ON (A.merchant_order_id = B.merchant_order_id OR A.card_id = B.card_id);
+        """)
 
-            with sqlalchemy_engine.connect() as conn:
-                df = pd.read_sql_query(query, conn, params={"from_date": from_date, "to_date": to_date})
-                df['card_name'] = db
-                order_records.append(df)
+        with sqlalchemy_engine.connect() as conn:
+            mw_order_records = pd.read_sql_query(query, conn, params={"from_date": from_date, "to_date": to_date})
 
     finally:
         tunnel.stop()
-        return pd.concat(order_records, ignore_index=True)
+        return mw_order_records
 
 
-def _merge_records(payment_record, order_record):
-    order_record['order_id'] = pd.to_numeric(order_record['order_id'], errors='coerce').astype('int64')
-    merged_records = pd.merge(payment_record, order_record, how='left', on='order_id')
+def _merge_records(payment_records, order_records):
+    order_records['order_id'] = pd.to_numeric(order_records['order_id'], errors='coerce').astype('int64')
+    merge_records = pd.merge(payment_records, order_records, how='left', on='order_id')
 
-    return merged_records
+    return merge_records
 
 
 def get_records(from_date, to_date):
-    payment_df = _payment_records(from_date, to_date)
-    order_df = _order_records(from_date, to_date)
-    merged_df = _merge_records(payment_df, order_df)
+    payment_records = _get_payment_gateway_records(from_date, to_date)
+    order_records = _get_mw_order_records(from_date, to_date)
+    query_result = _merge_records(payment_records, order_records)
 
-    return merged_df
-
-
-def get_pending_records(order_ids):
-    pending_records = []
-
-    tunnel = SSHTunnelForwarder(
-        (mw_card_server['ssh_host'], mw_card_server['ssh_port']),
-        ssh_username=mw_card_server['ssh_user'],
-        ssh_pkey=mw_card_server['ssh_pkey'],
-        remote_bind_address=(mw_card_server['sql_host'], mw_card_server['sql_port'])
-    )
-
-    try:
-        tunnel.start()
-
-        local_port = tunnel.local_bind_port
-        order_ids_str = ', '.join(f"'{id}'" for id in order_ids if id)
-
-        sqlalchemy_engine = create_engine(f"mysql+pymysql://{mw_card_server['sql_user']}:{mw_card_server['sql_pass']}@localhost:{local_port}")
-
-        db_list = ['mw_card', 'ucard', 'toncard']
-
-        for db in db_list:
-            query = text(f"""
-                SELECT ab.*, u.email, u.kyc_status
-                FROM (
-                    SELECT *
-                    FROM card_user.Users 
-                    WHERE kyc_status = 'PASSED'
-                ) AS u
-                RIGHT JOIN (
-                    SELECT
-                        a.id as order_id,
-                        a.user_id,
-                        a.coin_id,
-                        a.merchant_order_id,
-                        a.timestamp,
-                        a.base_amount,
-                        a.base_currency,
-                        a.amount_to_pay,
-                        a.order_data,
-                        a.order_type,
-                        a.status AS order_status,
-                        a.card_id AS order_card_id,
-                        b.card_id,
-                        b.alias,
-                        b.card_no,
-                        b.cvv,
-                        b.balance,
-                        b.status AS card_status,
-                        b.currency
-                    FROM (
-                        SELECT *
-                        FROM {db}.airswift_order
-                        WHERE id IN (
-                            {order_ids_str}
-                        )
-                    ) AS a
-                    LEFT JOIN {db}.blockpurse_card AS b 
-                    ON (b.merchant_order_id = a.merchant_order_id OR b.card_id = a.card_id)
-                ) AS ab 
-                ON u.uid = ab.user_id
-            """)
-
-            with sqlalchemy_engine.connect() as conn:
-                df = pd.read_sql_query(query, conn)
-                df['card_name'] = db
-                pending_records.append(df)
-
-    finally:
-        tunnel.stop()
-        non_empty_pending_records = [df.dropna(axis=1, how='all') for df in pending_records]
-        return pd.concat(non_empty_pending_records, ignore_index=True)
+    return query_result
 
 
 def _get_monthly_fee_cards(active_cards, input_date):

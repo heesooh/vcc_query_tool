@@ -10,6 +10,7 @@ test_account_2 = os.getenv('INTERNAL_ADDRESS_2')
 test_account_3 = os.getenv('INTERNAL_ADDRESS_3')
 test_account_4 = os.getenv('INTERNAL_ADDRESS_4')
 test_account_5 = os.getenv('INTERNAL_ADDRESS_5')
+test_account_6 = os.getenv('INTERNAL_ADDRESS_6')
 
 
 def _get_sender_address(hash_id):
@@ -27,17 +28,16 @@ def _is_test_address(address):
         test_account_2,
         test_account_3,
         test_account_4,
-        test_account_5
+        test_account_5,
+        test_account_6
     ]
 
     return address in test_addresses
 
 
-def _remove_prefix(apply_records, recharge_records):
-    apply_records.loc[:, 'order_type'] = 'APPLY_CARD'
-    recharge_records.loc[:, 'order_type'] = 'RECHARGE_CARD'
-
-    return apply_records, recharge_records
+def _update_record_column(records, column_name, value):
+    records.loc[:, column_name] = value
+    return records
 
 
 def _reset_index(records):
@@ -48,26 +48,37 @@ def _reset_index(records):
 
 
 def _filter_client_test_records(records):
-    client_records = records[records['is_client']]
-    test_records = records[~records['is_client']]
+    client_records = records[~records['teste_account']]
+    test_records = records[records['teste_account']]
 
-    client_records_success = client_records[client_records['order_status'] == 'SUCCESS']
-    client_records_pending = client_records[client_records['order_status'].isnull()]
+    pending_records = client_records[client_records['order_status'] == 0]
+    _update_record_column(pending_records, 'order_status', "PENDING")
 
-    card_apply_records = client_records_success[client_records_success['order_type'] == 'BP_APPLY_CARD']
-    card_recharge_records = client_records_success[client_records_success['order_type'] == 'BP_RECHARGE_CARD']
+    success_records = client_records[client_records['order_status'] == 1]
+    _update_record_column(success_records, 'order_status', "SUCCESS")
 
-    client_underpaid_records = client_records_pending[client_records_pending['pay_status'] == 0]
-    client_error_records = client_records_pending[client_records_pending['pay_status'] != 0]
+    timeout_records = client_records[client_records['order_status'] == 2]
+    _update_record_column(timeout_records, 'order_status', "TIMEOUT")
 
-    card_apply_records, card_recharge_records = _remove_prefix(card_apply_records, card_recharge_records)
+    cancelled_records = client_records[client_records['order_status'] == 3]
+    _update_record_column(cancelled_records, 'order_status', "CANCELLED")
+
+    refund_records = client_records[client_records['order_status'] == 4]
+    _update_record_column(refund_records, 'order_status', "REFUND")
+
+    apply_records = success_records[success_records['order_type'].str.contains('APPLY', na=False)]
+    _update_record_column(apply_records, 'order_type', "APPLY")
+    recharge_records = success_records[success_records['order_type'].str.contains('RECHARGE', na=False)]
+    _update_record_column(recharge_records, 'order_type', "RECHARGE")
 
     filtered_records = {
-        'apply_records': card_apply_records,
-        'recharge_records': card_recharge_records,
-        'underpaid_records': client_underpaid_records,
-        'error_records': client_error_records,
-        'test_records': test_records
+        'pending': pending_records,
+        'apply': apply_records,
+        'recharge': recharge_records,
+        'cancelled': cancelled_records,
+        'timeout': timeout_records,
+        'refund': refund_records,
+        'test': test_records
     }
 
     return _reset_index(filtered_records)
@@ -75,19 +86,27 @@ def _filter_client_test_records(records):
 
 def filter_records(records):
     progress = tqdm(total=records.shape[0])
-    records['is_client'] = None
+    records['teste_account'] = None
 
     for index, record in records.iterrows():
-        sender_address = _get_sender_address(record['transaction_hash'])
+        sender_address = _get_sender_address(record['tx_id'])
         progress.update()
         records.at[index, 'sender_address'] = sender_address
 
         if _is_test_address(sender_address):
-            records.at[index, 'is_client'] = False
+            records.at[index, 'teste_account'] = True
         else:
-            records.at[index, 'is_client'] = True
+            records.at[index, 'teste_account'] = False
+
+        if record['service'] is None:
+            if 'BP' in record['order_type']:
+                records.at[index, 'service'] = 'BP'
+            elif 'EE' in record['order_type']:
+                records.at[index, 'service'] = 'EE'
+            elif 'FO' in record['order_type']:
+                records.at[index, 'service'] = 'FO'
 
     progress.close()
-    records['is_client'] = records['is_client'].astype(bool)
+    records['teste_account'] = records['teste_account'].astype(bool)
 
     return _filter_client_test_records(records)
