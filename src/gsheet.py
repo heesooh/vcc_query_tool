@@ -13,11 +13,13 @@ service_acc_path = '../credentials/service_acc_credentials.json'
 workbook_id = os.getenv('GOOGLE_SHEET_ID')
 
 csv_files = {
-    'apply_records': 'apply_records.csv',
-    'recharge_records': 'recharge_records.csv',
-    'underpaid_records': 'underpaid_records.csv',
-    'error_records': 'error_records.csv',
-    'test_records': 'test_records.csv'
+    'apply_records': 'apply.csv',
+    'recharge_records': 'recharge.csv',
+    'refund_records': 'refund.csv',
+    'timeout_records': 'timeout.csv',
+    'cancelled_records': 'cancelled.csv',
+    'pending_records': 'pending.csv',
+    'test_records': 'test.csv',
 }
 
 

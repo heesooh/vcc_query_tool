@@ -54,7 +54,7 @@ def get_erc_sender_address(tx_hash):
                 # print("ERC20 Sender address: " + sender_address)
                 return sender_address
             else:
-                print("Sender's address not found.")
+                print("Sender's address not found for transaction " + tx_hash)
         else:
             print("Failed to Retrieve Data From: " + url)
     except requests.Timeout:

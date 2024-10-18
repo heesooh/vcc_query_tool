@@ -48,8 +48,8 @@ def _reset_index(records):
 
 
 def _filter_client_test_records(records):
-    client_records = records[~records['teste_account']]
-    test_records = records[records['teste_account']]
+    client_records = records[~records['test_account']]
+    test_records = records[records['test_account']]
 
     pending_records = client_records[client_records['order_status'] == 0]
     _update_record_column(pending_records, 'order_status', "PENDING")
@@ -85,8 +85,10 @@ def _filter_client_test_records(records):
 
 
 def filter_records(records):
+    records = records[~records['notify_url'].str.contains('polyflow', na=False)]
+
     progress = tqdm(total=records.shape[0])
-    records['teste_account'] = None
+    records['test_account'] = None
 
     for index, record in records.iterrows():
         sender_address = _get_sender_address(record['tx_id'])
@@ -94,19 +96,26 @@ def filter_records(records):
         records.at[index, 'sender_address'] = sender_address
 
         if _is_test_address(sender_address):
-            records.at[index, 'teste_account'] = True
+            records.at[index, 'test_account'] = True
         else:
-            records.at[index, 'teste_account'] = False
+            records.at[index, 'test_account'] = False
 
-        if record['service'] is None:
+        if record['card_issuer'] is None:
             if 'BP' in record['order_type']:
-                records.at[index, 'service'] = 'BP'
+                records.at[index, 'card_issuer'] = 'BP'
             elif 'EE' in record['order_type']:
-                records.at[index, 'service'] = 'EE'
+                records.at[index, 'card_issuer'] = 'EE'
             elif 'FO' in record['order_type']:
-                records.at[index, 'service'] = 'FO'
+                records.at[index, 'card_issuer'] = 'FO'
+
+        if record['pay_status'] == 0:
+            records.at[index, 'pay_status'] = 'Insufficient Payment'
+        elif record['pay_status'] == 1:
+            records.at[index, 'pay_status'] = 'Full Payment'
+        elif record['pay_status'] == 2:
+            records.at[index, 'pay_status'] = 'Over Payment'
 
     progress.close()
-    records['teste_account'] = records['teste_account'].astype(bool)
+    records['test_account'] = records['test_account'].astype(bool)
 
     return _filter_client_test_records(records)

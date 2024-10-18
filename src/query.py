@@ -44,7 +44,6 @@ def _get_payment_gateway_records(from_date, to_date):
             B.order_id,
             B.merchant_order_id,
             B.merchant_id,
-            B.trade_type,
             A.status AS udun_tx_status,
             B.order_status,
             B.amount,
@@ -92,27 +91,27 @@ def _get_mw_order_records(from_date, to_date):
                                           f"{mw_card_server['sql_pass']}@localhost:{local_port}")
 
         query = text(f"""
-            SELECT A.order_id, B.user_id, B.card_id, A.merchant_order_id, A.order_coin_id, A.order_amount_before_fee, A.order_amount_after_fee, A.order_data, A.order_type, A.order_timestamp, B.name_on_card, B.kyc_status, B.card_number, B.active_date, B.status, A.card_project, B.service
+            SELECT A.order_id, B.user_id, B.card_id, A.order_coin_id, A.order_amount_before_fee, A.order_amount_after_fee, A.order_data, A.order_type, A.order_timestamp, B.name_on_card, B.kyc_status, B.card_status, B.card_number, B.active_date, A.card_project, B.card_issuer
             FROM (
-               SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, status AS order_status, timestamp AS order_timestamp, 'MW CARD' AS card_project
+               SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, timestamp AS order_timestamp, 'MW CARD' AS card_project
                 FROM mw_card.airswift_order
                 WHERE STR_TO_DATE(SUBSTRING(timestamp, 1, 8), '%Y%m%d') BETWEEN :from_date AND :to_date
             
                 UNION ALL
             
-                SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, status AS order_status, timestamp AS order_timestamp, 'U CARD' AS card_project
+                SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, timestamp AS order_timestamp, 'U CARD' AS card_project
                 FROM ucard.airswift_order
                 WHERE STR_TO_DATE(SUBSTRING(timestamp, 1, 8), '%Y%m%d') BETWEEN :from_date AND :to_date
             
                 UNION ALL
             
-                SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, status AS order_status, timestamp AS order_timestamp, 'KIM CARD' AS card_project
+                SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, timestamp AS order_timestamp, 'KIM CARD' AS card_project
                 FROM kimcard.airswift_order
                 WHERE STR_TO_DATE(SUBSTRING(timestamp, 1, 8), '%Y%m%d') BETWEEN :from_date AND :to_date
             
                 UNION ALL
             
-                SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, status AS order_status, timestamp AS order_timestamp, 'TON CARD' AS card_project
+                SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, timestamp AS order_timestamp, 'TON CARD' AS card_project
                 FROM toncard.airswift_order
                 WHERE STR_TO_DATE(SUBSTRING(timestamp, 1, 8), '%Y%m%d') BETWEEN :from_date AND :to_date
                  ) AS A
@@ -120,7 +119,7 @@ def _get_mw_order_records(from_date, to_date):
                 SELECT card_info.*, user_info.email, user_info.kyc_status
                 FROM (
                     # Get Card Information (For Each MW Projects: MW, U, TON, KIM)
-                    SELECT card.merchant_order_id, card.card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.active_date, dashboard.status, dashboard.balance, dashboard.currency, 'BP' AS service
+                    SELECT card.merchant_order_id, card.card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.active_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'BP' AS card_issuer
                     FROM mw_card.blockpurse_card AS card
                     LEFT JOIN (
                         SELECT id, name_on_card, status, balance, currency, pan AS card_number
@@ -130,7 +129,7 @@ def _get_mw_order_records(from_date, to_date):
             
                     UNION ALL
             
-                    SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status, dashboard.balance, dashboard.currency, 'EE' AS service
+                    SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'EE' AS card_issuer
                     FROM mw_card.easyeuro_card AS card
                     LEFT JOIN (
                         SELECT id, name_on_card, status, balance, currency, pan AS card_number
@@ -140,7 +139,7 @@ def _get_mw_order_records(from_date, to_date):
             
                     UNION ALL
             
-                    SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status, dashboard.balance, dashboard.currency, 'FO' AS service
+                    SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'FO' AS card_issuer
                     FROM mw_card.financial_one_card AS card
                     LEFT JOIN (
                         SELECT id, name_on_card, status, balance, currency, pan AS card_number
