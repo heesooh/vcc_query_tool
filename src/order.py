@@ -63,7 +63,7 @@ recharge_order = [
     'card_issuer',
 ]
 
-test_order = [
+default_order = [
     'tx_id',
     'sender_address',
     'recipient_address',
@@ -96,6 +96,10 @@ test_order = [
 def order_records(records):
     records['apply'] = records['apply'] if records['apply'].empty else records['apply'][apply_order]
     records['recharge'] = records['recharge'] if records['recharge'].empty else records['recharge'][recharge_order]
-    records['test'] = records['test'] if records['test'].empty else records['test'][test_order]
+    records['cancelled'] = records['cancelled'] if records['cancelled'].empty else records['cancelled'][default_order]
+    records['timeout'] = records['timeout'] if records['timeout'].empty else records['timeout'][default_order]
+    records['pending'] = records['pending'] if records['pending'].empty else records['pending'][default_order]
+    records['refund'] = records['refund'] if records['refund'].empty else records['refund'][default_order]
+    records['test'] = records['test'] if records['test'].empty else records['test'][default_order]
 
     return records
