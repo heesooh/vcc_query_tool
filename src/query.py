@@ -118,7 +118,9 @@ def _get_mw_order_records(from_date, to_date):
             LEFT JOIN (
                 SELECT card_info.*, user_info.email, user_info.kyc_status
                 FROM (
-                    # Get Card Information (For Each MW Projects: MW, U, TON, KIM)
+                    # ======================================
+                    # Get Card Information (For Block Purse)
+                    # ======================================
                     SELECT card.merchant_order_id, card.card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.active_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'BP' AS card_issuer
                     FROM mw_card.blockpurse_card AS card
                     LEFT JOIN (
@@ -126,9 +128,42 @@ def _get_mw_order_records(from_date, to_date):
                         FROM mwcard_dashboard.card
                     ) AS dashboard
                     ON card.card_id = dashboard.id
+                    
+                    UNION ALL
+                    
+                    SELECT card.merchant_order_id, card.card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.active_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'BP' AS card_issuer
+                    FROM ucard.blockpurse_card AS card
+                    LEFT JOIN (
+                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
+                        FROM ucard_dashboard.card
+                    ) AS dashboard
+                    ON card.card_id = dashboard.id
+                    
+                    UNION ALL
+                    
+                    SELECT card.merchant_order_id, card.card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.active_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'BP' AS card_issuer
+                    FROM toncard.blockpurse_card AS card
+                    LEFT JOIN (
+                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
+                        FROM toncard_dashboard.card
+                    ) AS dashboard
+                    ON card.card_id = dashboard.id
+                    
+                    UNION ALL
+                    
+                    SELECT card.merchant_order_id, card.card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.active_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'BP' AS card_issuer
+                    FROM kimcard.blockpurse_card AS card
+                    LEFT JOIN (
+                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
+                        FROM kimcard_dashboard.card
+                    ) AS dashboard
+                    ON card.card_id = dashboard.id
             
                     UNION ALL
             
+                    # ====================================
+                    # Get Card Information (For Easy Euro)
+                    # ====================================
                     SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'EE' AS card_issuer
                     FROM mw_card.easyeuro_card AS card
                     LEFT JOIN (
@@ -138,7 +173,30 @@ def _get_mw_order_records(from_date, to_date):
                     ON card.id = dashboard.id
             
                     UNION ALL
+                    
+                    SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'EE' AS card_issuer
+                    FROM ucard.easyeuro_card AS card
+                    LEFT JOIN (
+                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
+                        FROM ucard_dashboard.card
+                    ) AS dashboard
+                    ON card.id = dashboard.id
             
+                    UNION ALL
+                    
+                    SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'EE' AS card_issuer
+                    FROM kimcard.easyeuro_card AS card
+                    LEFT JOIN (
+                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
+                        FROM kimcard_dashboard.card
+                    ) AS dashboard
+                    ON card.id = dashboard.id
+            
+                    UNION ALL
+            
+                    # ========================================
+                    # Get Card Information (For Financial One)
+                    # ========================================
                     SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'FO' AS card_issuer
                     FROM mw_card.financial_one_card AS card
                     LEFT JOIN (
@@ -146,7 +204,27 @@ def _get_mw_order_records(from_date, to_date):
                         FROM mwcard_dashboard.card
                     ) AS dashboard
                     ON card.id = dashboard.id
-                     ) AS card_info
+                    
+                    UNION  ALL 
+                    
+                    SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'FO' AS card_issuer
+                    FROM ucard.financial_one_card AS card
+                    LEFT JOIN (
+                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
+                        FROM ucard_dashboard.card
+                    ) AS dashboard
+                    ON card.id = dashboard.id
+                    
+                    UNION  ALL  
+                
+                    SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'FO' AS card_issuer
+                    FROM kimcard.financial_one_card AS card
+                    LEFT JOIN (
+                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
+                        FROM kimcard_dashboard.card
+                    ) AS dashboard
+                    ON card.id = dashboard.id
+                ) AS card_info
                 LEFT JOIN (
                     # Get User Information (ALL MW Projects)
                     SELECT uid AS user_id, email, kyc_status

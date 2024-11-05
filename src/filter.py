@@ -11,6 +11,7 @@ test_account_3 = os.getenv('INTERNAL_ADDRESS_3')
 test_account_4 = os.getenv('INTERNAL_ADDRESS_4')
 test_account_5 = os.getenv('INTERNAL_ADDRESS_5')
 test_account_6 = os.getenv('INTERNAL_ADDRESS_6')
+test_account_7 = os.getenv('INTERNAL_ADDRESS_7')
 
 
 def _get_sender_address(hash_id):
@@ -29,7 +30,8 @@ def _is_test_address(address):
         test_account_3,
         test_account_4,
         test_account_5,
-        test_account_6
+        test_account_6,
+        test_account_7
     ]
 
     return address in test_addresses
