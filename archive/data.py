@@ -2,7 +2,7 @@ import os
 from archive.sql import *
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv('../credentials/.env')
 
 # Payment Gateway
 PAYMENT_GATEWAY_HOST = os.getenv('PAYMENT_GATEWAY_HOST')

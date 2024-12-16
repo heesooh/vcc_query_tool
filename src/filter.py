@@ -3,7 +3,7 @@ from scraper import *
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-load_dotenv()
+load_dotenv('../credentials/.env')
 
 test_account_1 = os.getenv('INTERNAL_ADDRESS_1')
 test_account_2 = os.getenv('INTERNAL_ADDRESS_2')

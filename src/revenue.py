@@ -1,13 +1,6 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
-
-min_top_up_amount = float(os.getenv('MIN_TOP_UP_AMOUNT'))
-as_card_apply_amount = float(os.getenv('AS_CARD_APPLY_FEE'))
-recharge_fee_percent = float(os.getenv('RECHARGE_FEE_RATE'))
-as_recharge_fee_percent = float(os.getenv('AS_RECHARGE_FEE_RATE'))
-
 mw_card = {
     'BP_APPLY_FEE': 19,
     'BP_CHANNEL_APPLY_FEE': 1,

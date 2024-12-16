@@ -27,7 +27,7 @@ apply_order = [
     'card_number',
     'card_status',
     'card_project',
-    'active_date',
+    'activate_date',
     'card_issuer',
 ]
 
@@ -59,7 +59,7 @@ recharge_order = [
     'card_number',
     'card_status',
     'card_project',
-    'active_date',
+    'activate_date',
     'card_issuer',
 ]
 
@@ -88,7 +88,7 @@ default_order = [
     'card_number',
     'card_status',
     'card_project',
-    'active_date',
+    'activate_date',
     'card_issuer',
 ]
 

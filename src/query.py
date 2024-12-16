@@ -9,7 +9,7 @@ from sshtunnel import SSHTunnelForwarder
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-load_dotenv()
+load_dotenv('../credentials/.env')
 
 payment_gateway = {
     'host': os.getenv('PAYMENT_GATEWAY_HOST'),
@@ -41,39 +41,40 @@ def _get_payment_gateway_records(from_date, to_date):
 
     query = text(f"""
         SELECT
-            B.order_id,
-            B.merchant_order_id,
-            B.merchant_id,
-            A.status AS udun_tx_status,
-            B.order_status,
-            B.amount,
-            B.coin_id,
-            B.address AS recipient_address,
-            A.tx_id,
-            B.create_time,
-            B.update_time,
-            B.paid_amount,
-            B.refund_amount,
-            B.pay_status,
-            B.refund_time,
-            B.expire_time,
-            B.closed_time,
-            B.notify_url,
-            B.redirect_url
+            ORDER_CLOSED.order_id,
+            ORDER_CLOSED.merchant_order_id,
+            ORDER_CLOSED.merchant_id,
+            PAYMENT_RECORD.status AS udun_tx_status,
+            ORDER_CLOSED.order_status,
+            ORDER_CLOSED.amount,
+            ORDER_CLOSED.coin_id,
+            ORDER_CLOSED.address AS recipient_address,
+            PAYMENT_RECORD.tx_id,
+            ORDER_CLOSED.create_time,
+            ORDER_CLOSED.update_time,
+            ORDER_CLOSED.paid_amount,
+            ORDER_CLOSED.refund_amount,
+            ORDER_CLOSED.pay_status,
+            ORDER_CLOSED.refund_time,
+            ORDER_CLOSED.expire_time,
+            ORDER_CLOSED.closed_time,
+            ORDER_CLOSED.notify_url,
+            ORDER_CLOSED.redirect_url
         FROM (
             SELECT *
             FROM {payment_gateway['table1']}
-            WHERE DATE(create_time) BETWEEN :from_date AND :to_date) AS A
+            WHERE DATE(create_time) BETWEEN :from_date AND :to_date) AS PAYMENT_RECORD
         INNER JOIN (
             SELECT *
             FROM {payment_gateway['table2']}
-            WHERE DATE(closed_time) BETWEEN :from_date AND :to_date) AS B
-        ON A.order_id = B.order_id
-        ORDER BY A.create_time;
+            WHERE DATE(closed_time) BETWEEN :from_date AND :to_date) AS ORDER_CLOSED
+        ON PAYMENT_RECORD.order_id = ORDER_CLOSED.order_id
+        ORDER BY PAYMENT_RECORD.create_time;
     """)
 
     with sqlalchemy_engine.connect() as conn:
-        return pd.read_sql_query(query, conn, params={"from_date": from_date, "to_date": to_date})
+        res = pd.read_sql_query(query, conn, params={"from_date": from_date, "to_date": to_date})
+        return res
 
 
 def _get_mw_order_records(from_date, to_date):
@@ -91,9 +92,25 @@ def _get_mw_order_records(from_date, to_date):
                                           f"{mw_card_server['sql_pass']}@localhost:{local_port}")
 
         query = text(f"""
-            SELECT A.order_id, B.user_id, B.card_id, A.order_coin_id, A.order_amount_before_fee, A.order_amount_after_fee, A.order_data, A.order_type, A.order_timestamp, B.name_on_card, B.kyc_status, B.card_status, B.card_number, B.active_date, A.card_project, B.card_issuer
+            SELECT
+                ORDER_INFO.order_id,
+                CARD_INFO.user_id,
+                CARD_INFO.card_id,
+                ORDER_INFO.order_coin_id,
+                ORDER_INFO.order_amount_before_fee,
+                ORDER_INFO.order_amount_after_fee,
+                ORDER_INFO.order_data,
+                ORDER_INFO.order_type,
+                ORDER_INFO.order_timestamp,
+                CARD_INFO.name_on_card,
+                CARD_INFO.kyc_status,
+                CARD_INFO.card_status,
+                CARD_INFO.card_number,
+                CARD_INFO.activate_date,
+                ORDER_INFO.card_project,
+                CARD_INFO.card_issuer
             FROM (
-               SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, timestamp AS order_timestamp, 'MW CARD' AS card_project
+                SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, timestamp AS order_timestamp, 'MW CARD' AS card_project
                 FROM mw_card.airswift_order
                 WHERE STR_TO_DATE(SUBSTRING(timestamp, 1, 8), '%Y%m%d') BETWEEN :from_date AND :to_date
             
@@ -108,95 +125,10 @@ def _get_mw_order_records(from_date, to_date):
                 SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, timestamp AS order_timestamp, 'KIM CARD' AS card_project
                 FROM kimcard.airswift_order
                 WHERE STR_TO_DATE(SUBSTRING(timestamp, 1, 8), '%Y%m%d') BETWEEN :from_date AND :to_date
-            
-                UNION ALL
-            
-                SELECT id AS order_id, user_id, card_id, merchant_order_id, coin_id AS order_coin_id, base_amount AS order_amount_before_fee, amount_to_pay AS order_amount_after_fee, base_currency AS order_currency, order_data, order_type, timestamp AS order_timestamp, 'TON CARD' AS card_project
-                FROM toncard.airswift_order
-                WHERE STR_TO_DATE(SUBSTRING(timestamp, 1, 8), '%Y%m%d') BETWEEN :from_date AND :to_date
-                 ) AS A
+            ) AS ORDER_INFO
             LEFT JOIN (
-                SELECT card_info.*, user_info.email, user_info.kyc_status
+                SELECT FO_CARD_INFO.*, ALL_USER_INFO.email, ALL_USER_INFO.kyc_status
                 FROM (
-                    # ======================================
-                    # Get Card Information (For Block Purse)
-                    # ======================================
-                    SELECT card.merchant_order_id, card.card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.active_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'BP' AS card_issuer
-                    FROM mw_card.blockpurse_card AS card
-                    LEFT JOIN (
-                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
-                        FROM mwcard_dashboard.card
-                    ) AS dashboard
-                    ON card.card_id = dashboard.id
-                    
-                    UNION ALL
-                    
-                    SELECT card.merchant_order_id, card.card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.active_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'BP' AS card_issuer
-                    FROM ucard.blockpurse_card AS card
-                    LEFT JOIN (
-                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
-                        FROM ucard_dashboard.card
-                    ) AS dashboard
-                    ON card.card_id = dashboard.id
-                    
-                    UNION ALL
-                    
-                    SELECT card.merchant_order_id, card.card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.active_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'BP' AS card_issuer
-                    FROM toncard.blockpurse_card AS card
-                    LEFT JOIN (
-                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
-                        FROM toncard_dashboard.card
-                    ) AS dashboard
-                    ON card.card_id = dashboard.id
-                    
-                    UNION ALL
-                    
-                    SELECT card.merchant_order_id, card.card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.active_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'BP' AS card_issuer
-                    FROM kimcard.blockpurse_card AS card
-                    LEFT JOIN (
-                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
-                        FROM kimcard_dashboard.card
-                    ) AS dashboard
-                    ON card.card_id = dashboard.id
-            
-                    UNION ALL
-            
-                    # ====================================
-                    # Get Card Information (For Easy Euro)
-                    # ====================================
-                    SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'EE' AS card_issuer
-                    FROM mw_card.easyeuro_card AS card
-                    LEFT JOIN (
-                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
-                        FROM mwcard_dashboard.card
-                    ) AS dashboard
-                    ON card.id = dashboard.id
-            
-                    UNION ALL
-                    
-                    SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'EE' AS card_issuer
-                    FROM ucard.easyeuro_card AS card
-                    LEFT JOIN (
-                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
-                        FROM ucard_dashboard.card
-                    ) AS dashboard
-                    ON card.id = dashboard.id
-            
-                    UNION ALL
-                    
-                    SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'EE' AS card_issuer
-                    FROM kimcard.easyeuro_card AS card
-                    LEFT JOIN (
-                        SELECT id, name_on_card, status, balance, currency, pan AS card_number
-                        FROM kimcard_dashboard.card
-                    ) AS dashboard
-                    ON card.id = dashboard.id
-            
-                    UNION ALL
-            
-                    # ========================================
-                    # Get Card Information (For Financial One)
-                    # ========================================
                     SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'FO' AS card_issuer
                     FROM mw_card.financial_one_card AS card
                     LEFT JOIN (
@@ -204,9 +136,9 @@ def _get_mw_order_records(from_date, to_date):
                         FROM mwcard_dashboard.card
                     ) AS dashboard
                     ON card.id = dashboard.id
-                    
-                    UNION  ALL 
-                    
+            
+                    UNION  ALL
+            
                     SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'FO' AS card_issuer
                     FROM ucard.financial_one_card AS card
                     LEFT JOIN (
@@ -214,9 +146,9 @@ def _get_mw_order_records(from_date, to_date):
                         FROM ucard_dashboard.card
                     ) AS dashboard
                     ON card.id = dashboard.id
-                    
-                    UNION  ALL  
-                
+            
+                    UNION  ALL
+            
                     SELECT card.merchant_order_id, card.id AS card_id, card.user_id, dashboard.name_on_card, dashboard.card_number, card.activation_date AS activate_date, dashboard.status AS card_status, dashboard.balance, dashboard.currency, 'FO' AS card_issuer
                     FROM kimcard.financial_one_card AS card
                     LEFT JOIN (
@@ -224,15 +156,14 @@ def _get_mw_order_records(from_date, to_date):
                         FROM kimcard_dashboard.card
                     ) AS dashboard
                     ON card.id = dashboard.id
-                ) AS card_info
+                ) AS FO_CARD_INFO
                 LEFT JOIN (
-                    # Get User Information (ALL MW Projects)
                     SELECT uid AS user_id, email, kyc_status
                     FROM card_user.Users
-                ) AS user_info
-                ON card_info.user_id = user_info.user_id
-            ) AS B
-            ON (A.merchant_order_id = B.merchant_order_id OR A.card_id = B.card_id);
+                ) AS ALL_USER_INFO
+                ON FO_CARD_INFO.user_id = ALL_USER_INFO.user_id
+            ) AS CARD_INFO
+            ON (ORDER_INFO.merchant_order_id = CARD_INFO.merchant_order_id OR ORDER_INFO.card_id = CARD_INFO.card_id);
         """)
 
         with sqlalchemy_engine.connect() as conn:
@@ -263,7 +194,7 @@ def _get_monthly_fee_cards(active_cards, input_date):
     fee_before_date = datetime(input_date.year, input_date.month, 16)
     timestamp = datetime.timestamp(fee_before_date)
 
-    monthly_fee_cards_1 = active_cards[active_cards['active_date'] < timestamp]
+    monthly_fee_cards_1 = active_cards[active_cards['activate_date'] < timestamp]
     monthly_fee_cards_2 = monthly_fee_cards_1[monthly_fee_cards_1['merchant_order_id'] != 'FROM_VOUCHER']
 
     return monthly_fee_cards_2
@@ -287,7 +218,8 @@ def _get_active_cards():
                 '573e68a0-1fc1-4563-a0f7-17389279c1ba',
                 'fb31757d-b679-4e61-b433-ee6c1e8de365',
                 '49e7c755-d649-4efc-a39c-5c2803f8486d',
-                'f7c06b6b-9d7b-4e2c-8ead-18658ac0fdcf')
+                'f7c06b6b-9d7b-4e2c-8ead-18658ac0fdcf'
+                '5adf730c-9099-4a91-8cad-ea4e43c097bd')
         """)
 
         with sqlalchemy_engine.connect() as conn:

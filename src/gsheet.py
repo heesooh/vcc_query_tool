@@ -7,7 +7,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-load_dotenv()
+load_dotenv('../credentials/.env')
 
 service_acc_path = '../credentials/service_acc_credentials.json'
 workbook_id = os.getenv('GOOGLE_SHEET_ID')

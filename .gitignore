@@ -1,13 +1,9 @@
 data/
-.env
-readme.txt
-pipeline.txt
 
 __pycache__/
 .idea/
-venv
 .DS_Store
 
 credentials/
 
-execution.sh
+.venv

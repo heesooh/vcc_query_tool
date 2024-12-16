@@ -41,7 +41,7 @@ def _get_create_time(directory):
         return None
 
 
-def is_result_exist(from_date, to_date):
+def is_exist(from_date, to_date):
     directory = _get_directory_path(from_date, to_date)
     if _is_duplicate(directory):
         create_time = _get_create_time(directory)
@@ -65,7 +65,7 @@ def is_result_exist(from_date, to_date):
     return False
 
 
-def store_order_records(from_date, to_date, records):
+def store_data(from_date, to_date, records):
     directory = _get_directory_path(from_date, to_date)
 
     if not os.path.exists(directory):
