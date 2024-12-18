@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
-from args import get_arguments
-from query import get_records
+import argparse
+from database import get_records
 from filter import filter_records
 from revenue import calculate_card_revenue
 from order import order_records
@@ -11,6 +11,14 @@ from clint.textui import puts, colored, indent
 from data import is_exist, get_existing_data, store_data
 
 load_dotenv('../credentials/.env')
+
+
+def _get_arguments():
+    parser = argparse.ArgumentParser(description='Process records between two dates.')
+    parser.add_argument('-f', '--from-date', required=True, type=str, help='Start date in YYYY-MM-DD format')
+    parser.add_argument('-t', '--to-date', required=True, type=str, help='End date in YYYY-MM-DD format')
+
+    return parser.parse_args()
 
 
 def main(from_date, to_date):
@@ -37,14 +45,20 @@ def main(from_date, to_date):
 
 
 if __name__ == "__main__":
-    args = get_arguments()
-    if is_exist(args.from_date, args.to_date):
-        existing_records = get_existing_data(args.from_date, args.to_date)
-        puts(colored.blue('Upload Records: ') + 'Uploading existing records to Google Sheet...')
-        upload_to_google(args.from_date, args.to_date)
-    else:
-        # main(args.from_date, args.to_date)
-        main('2024-11-01', '2024-11-30')
+    main('2024-11-01', '2024-11-30')
+
+    # args = _get_arguments()
+    #
+    # try:
+    #     if is_exist(args.from_date, args.to_date):
+    #         existing_records = get_existing_data(args.from_date, args.to_date)
+    #         puts(colored.blue('Upload Records: ') + 'Uploading existing records to Google Sheet...')
+    #         upload_to_google(args.from_date, args.to_date)
+    #     else:
+    #         # main(args.from_date, args.to_date)
+    #         main('2024-11-01', '2024-11-30')
+    # except Exception as e:
+    #     print('Unexpected error has occurred: ', e)
 
     puts(colored.green('Complete: ') +
          "Please visit the following link to view the latest records >>> "

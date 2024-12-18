@@ -2,30 +2,6 @@ import os
 from dotenv import load_dotenv
 
 mw_card = {
-    'BP_APPLY_FEE': 19,
-    'BP_CHANNEL_APPLY_FEE': 1,
-    'BP_AS_APPLY_FEE': 0,
-    'BP_MW_APPLY_FEE': 0,
-    'BP_RECHARGE_RATE': 0.03,
-    'BP_CHANNEL_RECHARGE_RATE': 0,
-    'BP_AS_RECHARGE_RATE': 0.017,
-    'BP_MW_RECHARGE_RATE': 0.013,  # On the account sheet 0.012 but calculated as 0.013 so far
-    'BP_MONTHLY_FEE': 3,
-    'BP_MIN_TOP_UP': 20,
-    
-    'EE_APPLY_FEE': 99,
-    'EE_CHANNEL_APPLY_FEE': 0,
-    'EE_AS_APPLY_FEE': 0,
-    'EE_MW_APPLY_FEE': 99,
-    'EE_RECHARGE_RATE': 0.03,
-    'EE_CHANNEL_RECHARGE_RATE': 0,
-    'EE_AS_RECHARGE_RATE': 0.018,
-    'EE_MW_RECHARGE_RATE': 0.012,
-    'EE_MONTHLY_FEE': 9,
-    'EE_MIN_TX_FEE': 0.5,  # Minimum Transaction Fee of 0.5 USD (If 0.5% of the TX amount is less than 0.5 USDT)
-    'EE_TX_RATE': 0.5,
-    'EE_MIN_TOP_UP': 20,
-
     'FO_APPLY_FEE': 9,
     'FO_CHANNEL_APPLY_FEE': 4,
     'FO_AS_APPLY_FEE': 0,
@@ -38,30 +14,6 @@ mw_card = {
     'FO_MIN_TOP_UP': 20
 }
 u_card = {
-    'BP_APPLY_FEE': 120,
-    'BP_CHANNEL_APPLY_FEE': 0,
-    'BP_AS_APPLY_FEE': 5,
-    'BP_MW_APPLY_FEE': 115,
-    'BP_RECHARGE_RATE': 0.03,
-    'BP_CHANNEL_RECHARGE_RATE': 0,
-    'BP_AS_RECHARGE_RATE': 0.017,
-    'BP_MW_RECHARGE_RATE': 0.013,  # On the account sheet 0.012 but calculated as 0.013 so far
-    'BP_MONTHLY_FEE': 3,
-    'BP_MIN_TOP_UP': 20,
-
-    'EE_APPLY_FEE': 99,
-    'EE_CHANNEL_APPLY_FEE': 0,
-    'EE_AS_APPLY_FEE': 0,  # Mountain Wolf already paid 22 USD per card
-    'EE_MW_APPLY_FEE': 99,
-    'EE_RECHARGE_RATE': 0.03,
-    'EE_CHANNEL_RECHARGE_RATE': 0,
-    'EE_AS_RECHARGE_RATE': 0.018,
-    'EE_MW_RECHARGE_RATE': 0.012,
-    'EE_MONTHLY_FEE': 9,
-    'EE_MIN_TX_FEE': 0.5,  # Minimum Transaction Fee of 0.5 USD (If 0.5% of the TX amount is less than 0.5 USDT)
-    'EE_TX_RATE': 0.5,
-    'EE_MIN_TOP_UP': 20,
-
     'FO_APPLY_FEE': 12,
     'FO_CHANNEL_APPLY_FEE': 4,
     'FO_AS_APPLY_FEE': 3,
@@ -74,30 +26,6 @@ u_card = {
     'FO_MIN_TOP_UP': 20
 }
 kim_card = {
-    'BP_APPLY_FEE': 0,  # Kim Card Does Not Support BlockPurse
-    'BP_CHANNEL_APPLY_FEE': 0,
-    'BP_AS_APPLY_FEE': 0,
-    'BP_MW_APPLY_FEE': 0,
-    'BP_RECHARGE_RATE': 0,
-    'BP_CHANNEL_RECHARGE_RATE': 0,
-    'BP_AS_RECHARGE_RATE': 0,
-    'BP_MW_RECHARGE_RATE': 0,
-    'BP_MONTHLY_FEE': 0,
-    'BP_MIN_TOP_UP': 20,
-
-    'EE_APPLY_FEE': 99,
-    'EE_CHANNEL_APPLY_FEE': 0,
-    'EE_AS_APPLY_FEE': 0,  # Mountain Wolf already paid 22 USD per card
-    'EE_MW_APPLY_FEE': 99,
-    'EE_RECHARGE_RATE': 0.03,
-    'EE_CHANNEL_RECHARGE_RATE': 0,
-    'EE_AS_RECHARGE_RATE': 0.018,
-    'EE_MW_RECHARGE_RATE': 0.012,
-    'EE_MONTHLY_FEE': 9,
-    'EE_MIN_TX_FEE': 0.5,  # Minimum Transaction Fee of 0.5 USD (If 0.5% of the TX amount is less than 0.5 USDT)
-    'EE_TX_RATE': 0.5,
-    'EE_MIN_TOP_UP': 20,
-
     'FO_APPLY_FEE': 12,
     'FO_CHANNEL_APPLY_FEE': 4,
     'FO_AS_APPLY_FEE': 3,
@@ -107,42 +35,6 @@ kim_card = {
     'FO_AS_RECHARGE_RATE': 0.018,
     'FO_MW_RECHARGE_RATE': 0.012,
     'FO_MONTHLY_FEE': 5,
-    'FO_MIN_TOP_UP': 20
-}
-ton_card = {
-    'BP_APPLY_FEE': 25,
-    'BP_CHANNEL_APPLY_FEE': 0,
-    'BP_AS_APPLY_FEE': 5,
-    'BP_MW_APPLY_FEE': 20,
-    'BP_RECHARGE_RATE': 0.03,
-    'BP_CHANNEL_RECHARGE_RATE': 0,
-    'BP_AS_RECHARGE_RATE': 0.017,
-    'BP_MW_RECHARGE_RATE': 0.013,  # On the account sheet 0.012 but calculated as 0.013 so far
-    'BP_MONTHLY_FEE': 3,
-    'BP_MIN_TOP_UP': 20,
-
-    'EE_APPLY_FEE': 0,  # Ton Card Does Not Support EasyEuro
-    'EE_CHANNEL_APPLY_FEE': 0,
-    'EE_AS_APPLY_FEE': 0,
-    'EE_MW_APPLY_FEE': 0,
-    'EE_RECHARGE_RATE': 0,
-    'EE_CHANNEL_RECHARGE_RATE': 0,
-    'EE_AS_RECHARGE_RATE': 0,
-    'EE_MW_RECHARGE_RATE': 0,
-    'EE_MONTHLY_FEE': 0,
-    'EE_MIN_TX_FEE': 0,
-    'EE_TX_RATE': 0,
-    'EE_MIN_TOP_UP': 20,
-
-    'FO_APPLY_FEE': 0,  # Ton Card Does Not Support FinancialOne
-    'FO_CHANNEL_APPLY_FEE': 0,
-    'FO_AS_APPLY_FEE': 0,
-    'FO_MW_APPLY_FEE': 0,
-    'FO_RECHARGE_RATE': 0,
-    'FO_CHANNEL_RECHARGE_RATE': 0,
-    'FO_AS_RECHARGE_RATE': 0,
-    'FO_MW_RECHARGE_RATE': 0,
-    'FO_MONTHLY_FEE': 0,
     'FO_MIN_TOP_UP': 20
 }
 
@@ -222,8 +114,6 @@ def _calculate_revenue(records, is_apply):
             new_record = _calculate_revenue_helper(record, u_card, is_apply)
         elif 'FO CARD' in record['card_project']:
             new_record = _calculate_revenue_helper(record, u_card, is_apply)
-        elif 'TON CARD' in record['card_project']:
-            new_record = _calculate_revenue_helper(record, ton_card, is_apply)
 
         records.loc[index] = new_record
 
