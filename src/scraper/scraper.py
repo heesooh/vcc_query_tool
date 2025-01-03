@@ -34,7 +34,6 @@ def get_trc_sender_address(tx_hash):
     return 'Not Found'
 
 
-# TODO: Use Web3py with Infura
 def get_erc_sender_address(tx_hash):
     url = 'https://etherscan.io/tx/' + tx_hash
 

@@ -1,40 +1,6 @@
-import os
-from scraper import *
-from dotenv import load_dotenv
+from scraper import get_sender_address
 from tqdm import tqdm
-
-load_dotenv('../credentials/.env')
-
-test_account_1 = os.getenv('INTERNAL_ADDRESS_1')
-test_account_2 = os.getenv('INTERNAL_ADDRESS_2')
-test_account_3 = os.getenv('INTERNAL_ADDRESS_3')
-test_account_4 = os.getenv('INTERNAL_ADDRESS_4')
-test_account_5 = os.getenv('INTERNAL_ADDRESS_5')
-test_account_6 = os.getenv('INTERNAL_ADDRESS_6')
-test_account_7 = os.getenv('INTERNAL_ADDRESS_7')
-
-
-def _get_sender_address(hash_id):
-    if hash_id.startswith('0x'):
-        sender_address = get_erc_sender_address(hash_id)
-    else:
-        sender_address = get_trc_sender_address(hash_id)
-
-    return sender_address
-
-
-def _is_test_address(address):
-    test_addresses = [
-        test_account_1,
-        test_account_2,
-        test_account_3,
-        test_account_4,
-        test_account_5,
-        test_account_6,
-        test_account_7
-    ]
-
-    return address in test_addresses
+from config import get_internal_address
 
 
 def _update_record_column(records, column_name, value):
@@ -86,38 +52,76 @@ def _filter_client_test_records(records):
     return _reset_index(filtered_records)
 
 
-def filter_records(records):
-    records = records[~records['notify_url'].str.contains('polyflow', na=False)]
+def _is_internal_address(address):
+    internal_address = get_internal_address()
+    return address in internal_address
 
-    progress = tqdm(total=records.shape[0])
-    records['test_account'] = None
+
+def _is_polyflow_record(record):
+    return 'polyflow' in record['notify_url']
+
+
+def _is_valid_issuer(record):
+    return 'FO' in record['order_type']
+
+
+def _pay_status_string_convert(record):
+    if record['pay_status'] == 0:
+        return 'Insufficient Payment'
+    elif record['pay_status'] == 1:
+        return 'Full Payment'
+    elif record['pay_status'] == 2:
+        return 'Over Payment'
+
+
+def _order_status_string_convert(record):
+    if record['order_status'] == 0:
+        return 'Pending'
+    elif record['order_status'] == 1:
+        return 'Success'
+    elif record['order_status'] == 2:
+        return 'Timeout'
+    elif record['order_status'] == 3:
+        return 'Cancelled'
+    elif record['order_status'] == 4:
+        return 'Refund'
+
+
+def filter_records(records):
+
+    # progress = tqdm(total=records.shape[0])
+    # records['test_account'] = None
+
+    # print('Hello')
+    # print('Result: ', records)
 
     for index, record in records.iterrows():
-        sender_address = _get_sender_address(record['tx_id'])
-        progress.update()
-        records.at[index, 'sender_address'] = sender_address
-
-        if _is_test_address(sender_address):
-            records.at[index, 'test_account'] = True
+        address = get_sender_address(record['tx_id'])
+        if _is_internal_address(address) or _is_polyflow_record(record) or not _is_valid_issuer(record):
+            continue
         else:
-            records.at[index, 'test_account'] = False
+            record['sender_address'] = address
+            record['pay_status'] = _pay_status_string_convert(record)
+            record['order_status'] = _order_status_string_convert(record)
 
-        if record['card_issuer'] is None:
-            if 'BP' in record['order_type']:
-                records.at[index, 'card_issuer'] = 'BP'
-            elif 'EE' in record['order_type']:
-                records.at[index, 'card_issuer'] = 'EE'
-            elif 'FO' in record['order_type']:
-                records.at[index, 'card_issuer'] = 'FO'
+            yield record
 
-        if record['pay_status'] == 0:
-            records.at[index, 'pay_status'] = 'Insufficient Payment'
-        elif record['pay_status'] == 1:
-            records.at[index, 'pay_status'] = 'Full Payment'
-        elif record['pay_status'] == 2:
-            records.at[index, 'pay_status'] = 'Over Payment'
+    return records
 
-    progress.close()
-    records['test_account'] = records['test_account'].astype(bool)
+    # print(records.to_string())
 
-    return _filter_client_test_records(records)
+    # progress.update()
+
+    # records.at[index, 'sender_address'] = address
+    #
+    # if record['pay_status'] == 0:
+    #     records.at[index, 'pay_status'] = 'Insufficient Payment'
+    # elif record['pay_status'] == 1:
+    #     records.at[index, 'pay_status'] = 'Full Payment'
+    # elif record['pay_status'] == 2:
+    #     records.at[index, 'pay_status'] = 'Over Payment'
+
+    # progress.close()
+    # records['test_account'] = records['test_account'].astype(bool)
+
+    # return _filter_client_test_records(records)
